@@ -60,7 +60,9 @@ export default defineConfig(() => ({
       jQuery: "jquery"
     }),
     peggyPlugin(),
-    vitePluginFaviconsInject("./turbo.svg")
+    vitePluginFaviconsInject(resolve(__dirname, "turbo.svg"), undefined, {
+      failGraciously: true
+    })
   ],
   // https://vitest.dev/config/
   test: {

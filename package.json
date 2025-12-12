@@ -14,7 +14,9 @@
     "fix:style": "prettier --write .",
     "start": "vite",
     "dev": "vite",
-    "build": "vite build"
+    "build": "vite build",
+    "deploy": "yarn build && firebase deploy",
+    "deploy:preview": "yarn build && firebase hosting:channel:deploy preview"
   },
   "devDependencies": {
     "@rollup/plugin-inject": "^5.0.3",

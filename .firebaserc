@@ -1,0 +1,8 @@
+{
+  "projects": {
+    "default": "overpass-map-visual",
+    "poc": "overpass-map-visual"
+  },
+  "targets": {},
+  "etags": {}
+}
