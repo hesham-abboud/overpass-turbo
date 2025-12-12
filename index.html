@@ -102,6 +102,18 @@
               </span>
               <span class="t" data-t="nav.styler">Style</span>
             </button>
+            <button
+              class="t button"
+              accesskey=""
+              id="visual-builder-toggle"
+              data-ide-handler="click:onVisualBuilderToggle"
+              title="Toggle Visual Query Builder"
+            >
+              <span class="icon">
+                <span class="fas fa-sliders-h"></span>
+              </span>
+              <span>Visual Builder</span>
+            </button>
           </div>
         </div>
         <div class="navbar-item">
@@ -210,8 +222,105 @@
     </nav>
 
     <div id="editor">
-      <!-- CodeMirror goes here -->
-      <textarea></textarea>
+      <!-- Visual Query Builder -->
+      <div id="visual-builder" style="display: none">
+        <div class="visual-builder-header">
+          <h3 class="visual-builder-title">Visual Query Builder</h3>
+          <button
+            class="button is-small"
+            id="visual-builder-clear"
+            title="Clear all conditions"
+          >
+            <span class="icon"><span class="fas fa-trash"></span></span>
+            <span>Clear</span>
+          </button>
+        </div>
+        <div class="visual-builder-content">
+          <div class="field is-horizontal" style="display: block">
+            <div class="field-label is-normal">
+              <label class="label">Location:</label>
+            </div>
+            <div class="field-body">
+              <div class="field has-addons">
+                <div class="control" style="margin-right: 20px">
+                  <label class="radio">
+                    <input
+                      type="radio"
+                      name="location-type"
+                      value="bbox"
+                      checked
+                    />
+                    <span>Bbox</span>
+                  </label>
+                </div>
+                <div class="control" style="margin-right: 20px">
+                  <label class="radio">
+                    <input type="radio" name="location-type" value="area" />
+                    <span>Area</span>
+                  </label>
+                </div>
+                <div class="control" style="margin-right: 20px">
+                  <label class="radio">
+                    <input type="radio" name="location-type" value="around" />
+                    <span>Around</span>
+                  </label>
+                </div>
+                <div class="control" style="margin-right: 20px">
+                  <label class="radio">
+                    <input type="radio" name="location-type" value="global" />
+                    <span>Global</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            class="field is-horizontal"
+            style="display: block"
+            id="location-params"
+            style="display: none"
+          >
+            <div class="field-label is-normal">
+              <label class="label">Area/Radius:</label>
+            </div>
+            <div class="field-body">
+              <div class="field">
+                <div class="control">
+                  <input
+                    class="input"
+                    type="text"
+                    id="location-value"
+                    placeholder="Enter area name or radius"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="field is-horizontal" style="display: block">
+            <div class="field-label is-normal">
+              <label class="label">Conditions:</label>
+            </div>
+            <div class="field-body">
+              <div id="condition-blocks"></div>
+              <button class="button is-small" id="add-condition">
+                <span class="icon"><span class="fas fa-plus"></span></span>
+                <span>Add Condition</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Resizable divider -->
+      <div
+        id="editor-divider"
+        class="editor-divider"
+        style="display: none"
+      ></div>
+      <!-- Code Editor Section -->
+      <div id="code-editor-section">
+        <!-- CodeMirror goes here -->
+        <textarea></textarea>
+      </div>
     </div>
     <div id="dataviewer">
       <div id="map"></div>

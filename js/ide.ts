@@ -26,6 +26,7 @@ import Autorepair from "./autorepair";
 import {Base64, htmlentities, lzw_encode, lzw_decode} from "./misc";
 import sync from "./sync-with-osm";
 import shortcuts, {Shortcut} from "./shortcuts";
+import VisualQueryBuilder from "./visual-builder";
 
 declare const CodeMirror;
 
@@ -154,6 +155,7 @@ class IDE {
   codeEditor = null;
   dataViewer = null;
   map: L.Map = null;
+  visualBuilder: VisualQueryBuilder = null;
 
   // == public sub objects ==
 
@@ -327,7 +329,7 @@ class IDE {
     );
 
     // init codemirror
-    $("#editor textarea")[0].value = settings.code["overpass"];
+    $("#code-editor-section textarea")[0].value = settings.code["overpass"];
     if (settings.use_rich_editor) {
       CodeMirror.defineMIME("text/x-overpassQL", {
         name: "clike",
@@ -401,7 +403,7 @@ class IDE {
           }
         )
       );
-      ide.codeEditor = CodeMirror.fromTextArea($("#editor textarea")[0], {
+      ide.codeEditor = CodeMirror.fromTextArea($("#code-editor-section textarea")[0], {
         //value: settings.code["overpass"],
         lineNumbers: true,
         lineWrapping: true,
@@ -482,7 +484,7 @@ class IDE {
       ide.codeEditor.getOption("onChange")(ide.codeEditor);
     } else {
       // use non-rich editor
-      ide.codeEditor = $("#editor textarea")[0];
+      ide.codeEditor = $("#code-editor-section textarea")[0];
       ide.codeEditor.getValue = function () {
         return this.value;
       };
@@ -493,7 +495,7 @@ class IDE {
         return this.value.split(/\r\n|\r|\n/).length;
       };
       ide.codeEditor.setLineClass = function () {};
-      $("#editor textarea").bind("input change", (e) => {
+      $("#code-editor-section textarea").bind("input change", (e) => {
         settings.code["overpass"] = e.target.getValue();
         settings.save();
       });
@@ -503,6 +505,20 @@ class IDE {
       // query set via url
       ide.codeEditor.setValue(args.query);
     }
+
+    // Initialize visual query builder
+    if (settings.enable_visual_builder !== false) {
+      ide.visualBuilder = new VisualQueryBuilder(ide.codeEditor);
+      ide.visualBuilder.init().then(() => {
+        // Set initial visibility based on settings
+        if (settings.visual_builder_visible) {
+          ide.showVisualBuilder();
+          // Update code editor with initial empty query
+          ide.visualBuilder.updateCodeEditor();
+        }
+      });
+    }
+
     // init dataviewer
     ide.dataViewer = CodeMirror($("#data")[0], {
       value: "no data loaded yet",
@@ -2496,6 +2512,82 @@ class IDE {
   }
   onStylerClose() {
     $("#styler-dialog").removeClass("is-active");
+  }
+  onVisualBuilderToggle() {
+    if ($("#visual-builder").is(":visible")) {
+      this.hideVisualBuilder();
+    } else {
+      this.showVisualBuilder();
+    }
+  }
+  showVisualBuilder() {
+    if (!this.visualBuilder) return;
+    $("#visual-builder").show();
+    $("#editor-divider").show();
+    // Restore saved height if available
+    if (settings.visual_builder_height) {
+      $("#visual-builder").css("height", `${settings.visual_builder_height}px`);
+    }
+    settings.visual_builder_visible = true;
+    settings.save();
+    // Make editor resizable between visual builder and code editor
+    this.setupEditorResizer();
+    // Invalidate map size in case layout changed
+    if (this.map) {
+      setTimeout(() => this.map.invalidateSize(false), 100);
+    }
+  }
+  hideVisualBuilder() {
+    $("#visual-builder").hide();
+    $("#editor-divider").hide();
+    settings.visual_builder_visible = false;
+    settings.save();
+    // Remove resizer if it exists
+    if ($("#editor").resizable("instance")) {
+      $("#editor").resizable("destroy");
+    }
+    // Invalidate map size
+    if (this.map) {
+      setTimeout(() => this.map.invalidateSize(false), 100);
+    }
+  }
+  setupEditorResizer() {
+    // Setup resizable divider between visual builder and code editor
+    const $divider = $("#editor-divider");
+    let isResizing = false;
+    let startY = 0;
+    let startHeight = 0;
+
+    $divider.off("mousedown").on("mousedown", (e) => {
+      isResizing = true;
+      startY = e.pageY;
+      startHeight = $("#visual-builder").outerHeight();
+      $("body").css("cursor", "row-resize");
+      e.preventDefault();
+    });
+
+    $(document)
+      .off("mousemove.visual-builder-resize")
+      .on("mousemove.visual-builder-resize", (e) => {
+        if (!isResizing) return;
+        const deltaY = e.pageY - startY;
+        const newHeight = Math.max(100, startHeight + deltaY);
+        $("#visual-builder").css("height", `${newHeight}px`);
+        e.preventDefault();
+      })
+      .off("mouseup.visual-builder-resize")
+      .on("mouseup.visual-builder-resize", () => {
+        if (isResizing) {
+          isResizing = false;
+          $("body").css("cursor", "");
+          const height = $("#visual-builder").outerHeight();
+          settings.visual_builder_height = height;
+          settings.save();
+          if (this.map) {
+            this.map.invalidateSize(false);
+          }
+        }
+      });
   }
   onSettingsClick() {
     $("#settings-dialog input[name=ui_language]")[0].value =

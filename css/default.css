@@ -32,6 +32,158 @@ body {
   bottom: 0;
   left: 0;
   width: 45%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Visual Query Builder */
+#visual-builder {
+  background-color: #f5f5f5;
+  border-bottom: 1px solid #ccc;
+  padding: 10px;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.visual-builder-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.visual-builder-title {
+  font-size: 1rem;
+  font-weight: bold;
+  margin: 0;
+}
+
+.visual-builder-content {
+  font-size: 0.9rem;
+}
+
+.visual-builder-content .field-label {
+  flex-basis: 120px;
+  flex-shrink: 0;
+  text-align: left;
+}
+
+.visual-builder-content .field-body {
+  flex-grow: 1;
+  text-align: left;
+  min-width: 0;
+}
+
+.visual-builder-content .field-body#condition-blocks-container {
+  width: 100%;
+}
+
+.visual-builder-content .field.is-horizontal {
+  align-items: flex-start;
+}
+
+.condition-block {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 8px;
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.condition-block .remove-condition {
+  flex-shrink: 0;
+}
+
+.condition-block .geometry-select,
+.condition-block .tag-key-select,
+.condition-block .operator-select,
+.condition-block .logic-select {
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.condition-block .geometry-select {
+  flex: 0 0 auto;
+}
+
+.condition-block .geometry-select select,
+.condition-block .tag-key-select select,
+.condition-block .operator-select select,
+.condition-block .logic-select select {
+  width: 100%;
+  min-width: 0;
+}
+
+.condition-block .tag-key-select {
+  flex: 1.5 1 0;
+  min-width: 120px;
+}
+
+.condition-block .operator-select {
+  flex: 0.8 1 0;
+  min-width: 80px;
+}
+
+.condition-block .value-container {
+  flex: 2 1 0;
+  min-width: 150px;
+  display: flex;
+  align-items: center;
+}
+
+.condition-block .value-container .tag-value-input {
+  width: 100%;
+  flex: 1;
+  min-width: 0;
+}
+
+.condition-block .logic-select {
+  flex: 0.8 1 0;
+  min-width: 80px;
+}
+
+#condition-blocks {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+#add-condition {
+  margin-top: 8px;
+  align-self: flex-start;
+}
+
+.editor-divider {
+  height: 4px;
+  background-color: #ccc;
+  cursor: row-resize;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.editor-divider:hover {
+  background-color: #999;
+}
+
+.editor-divider::after {
+  content: "⋮";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  color: #666;
+  font-size: 12px;
+}
+
+#code-editor-section {
+  flex: 1;
+  min-height: 0;
+  position: relative;
 }
 #dataviewer {
   background-color: #ffffff;
@@ -50,6 +202,7 @@ body {
   height: 25%;
   width: 100%;
   bottom: auto;
+  flex-direction: column;
 }
 #dataviewer.portrait {
   width: 100%;
@@ -88,11 +241,13 @@ body {
   height: 100%;
   line-height: 1.2em;
 }
-#editor .CodeMirror-scroll {
+#editor .CodeMirror-scroll,
+#code-editor-section .CodeMirror-scroll {
   height: 100%;
   overflow-x: auto;
 }
-#editor textarea {
+#editor textarea,
+#code-editor-section textarea {
   padding: 0;
   border: 0;
   height: 100%;
@@ -405,4 +560,8 @@ kbd {
 }
 #styler-button {
   display: none;
+}
+
+.control {
+  margin-right: 20px;
 }

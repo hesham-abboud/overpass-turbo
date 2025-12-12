@@ -27,6 +27,9 @@ class Settings {
   disable_poiomatic: boolean;
   show_data_stats: boolean;
   disable_warning_huge_data: boolean;
+  enable_visual_builder: boolean;
+  visual_builder_visible: boolean;
+  visual_builder_height: number;
 
   // meta settings
   first_time_visit: boolean;
@@ -150,7 +153,7 @@ const examples_initial_example = "Drinking Water";
 // global settings object
 const settings = new Settings(
   configs.settingNamespace || configs.appname,
-  39 // settings version number
+  40 // settings version number
 );
 
 export default settings;
@@ -200,6 +203,10 @@ settings.define_setting("disable_poiomatic", "boolean", false, 21);
 settings.define_setting("show_data_stats", "boolean", true, 21);
 // disable poi-o-matic
 settings.define_setting("disable_warning_huge_data", "boolean", false, 39);
+// visual query builder
+settings.define_setting("enable_visual_builder", "boolean", true, 40);
+settings.define_setting("visual_builder_visible", "boolean", false, 40);
+settings.define_setting("visual_builder_height", "Integer", 200, 40);
 
 //settings.define_setting(,,,);
 
