@@ -43,6 +43,104 @@ body {
   padding: 10px;
   overflow-y: auto;
   flex-shrink: 0;
+  position: relative;
+}
+
+/* Loading overlay */
+.vqb-loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(245, 245, 245, 0.75);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.vqb-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid #ddd;
+  border-top-color: #3273dc;
+  border-radius: 50%;
+  animation: vqb-spin 0.7s linear infinite;
+}
+
+@keyframes vqb-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Header actions */
+.visual-builder-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.visual-builder-header-actions .dropdown {
+  position: relative;
+}
+
+.visual-builder-header-actions .dropdown-menu {
+  min-width: 220px;
+  z-index: 20;
+}
+
+.visual-builder-header-actions .dropdown-item {
+  font-size: 0.85rem;
+  padding: 0.4rem 0.75rem;
+}
+
+.visual-builder-header-actions .dropdown-item:hover {
+  background-color: #f0f0f0;
+}
+
+.visual-builder-header-actions .dropdown-item .history-time {
+  font-size: 0.7rem;
+  color: #999;
+  display: block;
+}
+
+/* Empty state */
+#vqb-empty-state {
+  padding: 12px;
+  text-align: center;
+  border: 2px dashed #ddd;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+#vqb-quick-presets {
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+#vqb-quick-presets .button {
+  font-size: 0.8rem;
+}
+
+/* Preview count */
+#preview-count-result {
+  font-weight: 600;
+  transition: opacity 0.3s ease;
+}
+
+#preview-count-result.is-success {
+  background-color: #48c774;
+  color: white;
+}
+
+#preview-count-result.is-warning {
+  background-color: #ffdd57;
+  color: rgba(0,0,0,0.7);
+}
+
+#preview-count-result.is-danger {
+  background-color: #f14668;
+  color: white;
 }
 
 .visual-builder-header {

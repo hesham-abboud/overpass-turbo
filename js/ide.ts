@@ -1021,9 +1021,11 @@ class IDE {
       } else continueCB();
     };
     overpass.handlers["onAbort"] = function () {
+      if (ide.visualBuilder) ide.visualBuilder.setLoading(false);
       ide.waiter.close();
     };
     overpass.handlers["onAjaxError"] = function (errmsg) {
+      if (ide.visualBuilder) ide.visualBuilder.setLoading(false);
       ide.waiter.close();
       const _originalDocumentTitle = document.title;
       document.title = `❗ ${_originalDocumentTitle}`;
@@ -1046,6 +1048,7 @@ class IDE {
       if (overpass.resultText) ide.dataViewer.setValue(overpass.resultText);
     };
     overpass.handlers["onQueryError"] = function (errmsg) {
+      if (ide.visualBuilder) ide.visualBuilder.setLoading(false);
       ide.waiter.close();
       const _originalDocumentTitle = document.title;
       document.title = `❗ ${_originalDocumentTitle}`;
@@ -1077,6 +1080,10 @@ class IDE {
       ide.dataViewer.setValue(overpass.resultText);
     };
     overpass.handlers["onGeoJsonReady"] = function () {
+      // Release VQB loading state
+      if (ide.visualBuilder) {
+        ide.visualBuilder.setLoading(false);
+      }
       // show layer
       ide.map.addLayer(overpass.osmLayer);
       // autorun callback (e.g. zoom to data)
@@ -1508,6 +1515,12 @@ class IDE {
     $("#logout").insertBefore($("#logout").prev());
   }
   onRunClick() {
+    // Safe mode: check if VQB is visible and query is unbounded
+    if (this.visualBuilder && $("#visual-builder").is(":visible") && !this.visualBuilder.isQuerySafe()) {
+      if (!confirm("⚠️ This query has no geographic bounds and may return a very large amount of data or timeout.\n\nAre you sure you want to run it?")) {
+        return;
+      }
+    }
     this.update_map();
   }
   onRerenderClick() {
@@ -2838,14 +2851,46 @@ class IDE {
       event.preventDefault();
     }
 
-    if (event.key === "Escape") {
-      // Escape
-      $(".modal").removeClass("is-active");
+    // Ctrl+Enter — run query
+    if (
+      event.key === "Enter" &&
+      (event.ctrlKey || event.metaKey) &&
+      !event.shiftKey &&
+      !event.altKey
+    ) {
+      this.onRunClick();
+      event.preventDefault();
     }
 
-    // todo: more shortcuts
+    if (event.key === "Escape") {
+      // Escape — close modals first, then close VQB if no modal is open
+      if ($(".modal.is-active").length > 0) {
+        $(".modal").removeClass("is-active");
+      } else if ($("#visual-builder").is(":visible")) {
+        this.hideVisualBuilder();
+      }
+    }
+
+    // Ctrl+Shift+A — add condition block in VQB
+    if (
+      event.key === "A" &&
+      (event.ctrlKey || event.metaKey) &&
+      event.shiftKey &&
+      !event.altKey
+    ) {
+      if (this.visualBuilder && $("#visual-builder").is(":visible")) {
+        this.visualBuilder.addConditionBlock();
+        this.visualBuilder.updateCodeEditor();
+        event.preventDefault();
+      }
+    }
   }
   async update_map() {
+    // Enable loading state on VQB if visible
+    if (this.visualBuilder && $("#visual-builder").is(":visible")) {
+      this.visualBuilder.setLoading(true);
+    }
+
     this.waiter.open(i18n.t("waiter.processing_query"));
     this.waiter.addInfo("resetting map");
     $("#data_stats").remove();
@@ -2860,6 +2905,12 @@ class IDE {
     this.waiter.addInfo("building query");
     // run the query via the overpass object
     const query = await this.getQuery();
+
+    // Save to VQB history if builder is visible
+    if (this.visualBuilder && $("#visual-builder").is(":visible")) {
+      this.visualBuilder.saveToHistory(this.getRawQuery());
+    }
+
     if (configs.push_history_url && typeof history.pushState == "function") {
       const url = this.compose_share_link(this.getRawQuery(), true);
       if (url.length > 2000) {

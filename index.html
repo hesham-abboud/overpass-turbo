@@ -224,16 +224,49 @@
     <div id="editor">
       <!-- Visual Query Builder -->
       <div id="visual-builder" style="display: none">
+        <div class="vqb-loading-overlay" id="vqb-loading-overlay" style="display: none">
+          <div class="vqb-spinner"></div>
+        </div>
         <div class="visual-builder-header">
           <h3 class="visual-builder-title">Visual Query Builder</h3>
-          <button
-            class="button is-small"
-            id="visual-builder-clear"
-            title="Clear all conditions"
-          >
-            <span class="icon"><span class="fas fa-trash"></span></span>
-            <span>Clear</span>
-          </button>
+          <div class="visual-builder-header-actions">
+            <!-- Templates dropdown -->
+            <div class="dropdown" id="vqb-templates-dropdown">
+              <div class="dropdown-trigger">
+                <button class="button is-small" aria-haspopup="true" id="vqb-templates-btn">
+                  <span class="icon"><span class="fas fa-th-list"></span></span>
+                  <span>Templates</span>
+                  <span class="icon is-small"><span class="fas fa-angle-down"></span></span>
+                </button>
+              </div>
+              <div class="dropdown-menu" role="menu">
+                <div class="dropdown-content" id="vqb-templates-list"></div>
+              </div>
+            </div>
+            <!-- History dropdown -->
+            <div class="dropdown" id="vqb-history-dropdown">
+              <div class="dropdown-trigger">
+                <button class="button is-small" aria-haspopup="true" id="vqb-history-btn">
+                  <span class="icon"><span class="fas fa-history"></span></span>
+                  <span>Recent</span>
+                  <span class="icon is-small"><span class="fas fa-angle-down"></span></span>
+                </button>
+              </div>
+              <div class="dropdown-menu" role="menu">
+                <div class="dropdown-content" id="vqb-history-list">
+                  <p class="dropdown-item has-text-grey-light">No recent queries</p>
+                </div>
+              </div>
+            </div>
+            <button
+              class="button is-small"
+              id="visual-builder-clear"
+              title="Clear all conditions"
+            >
+              <span class="icon"><span class="fas fa-trash"></span></span>
+              <span>Clear</span>
+            </button>
+          </div>
         </div>
         <div class="visual-builder-content">
           <div class="field is-horizontal" style="display: block">
@@ -272,6 +305,10 @@
                   </label>
                 </div>
               </div>
+              <!-- Global query warning -->
+              <p class="help is-danger" id="global-warning" style="display: none">
+                ⚠️ Global queries have no geographic bounds and may be very slow or timeout.
+              </p>
             </div>
           </div>
           <div
@@ -301,12 +338,33 @@
               <label class="label">Conditions:</label>
             </div>
             <div class="field-body">
-              <div id="condition-blocks"></div>
+              <div id="condition-blocks">
+                <!-- Empty state placeholder (shown when no conditions) -->
+                <div id="vqb-empty-state" style="display: none">
+                  <p class="has-text-grey" style="margin-bottom: 10px;">
+                    Build a query by adding conditions, or start from a template:
+                  </p>
+                  <div class="buttons" id="vqb-quick-presets"></div>
+                </div>
+              </div>
               <p class="help is-warning" id="conditions-warning" style="display: none; margin-bottom: 8px;"></p>
-              <button class="button is-small" id="add-condition">
-                <span class="icon"><span class="fas fa-plus"></span></span>
-                <span>Add Condition</span>
-              </button>
+              <div class="field has-addons" style="margin-top: 8px;">
+                <p class="control">
+                  <button class="button is-small" id="add-condition">
+                    <span class="icon"><span class="fas fa-plus"></span></span>
+                    <span>Add Condition</span>
+                  </button>
+                </p>
+                <p class="control">
+                  <button class="button is-small is-info is-outlined" id="preview-count-btn" title="Estimate how many results this query will return">
+                    <span class="icon"><span class="fas fa-search"></span></span>
+                    <span>Preview Count</span>
+                  </button>
+                </p>
+                <p class="control">
+                  <span class="tag is-medium" id="preview-count-result" style="display: none;"></span>
+                </p>
+              </div>
             </div>
           </div>
         </div>

@@ -944,11 +944,56 @@ type QueryState = {
   conditions: Condition[];
 };
 
+type HistoryEntry = {
+  timestamp: number;
+  queryText: string;
+  state: QueryState;
+  label: string;
+};
+
+// --- VQB PRESET TEMPLATES ---
+const VQB_PRESETS: Record<string, { conditions: Array<{geometry: string; key: string; operator: string; value: string}>; icon: string }> = {
+  "Hospitals": {
+    icon: "fas fa-hospital",
+    conditions: [{ geometry: "nwr", key: "amenity", operator: "=", value: "hospital" }]
+  },
+  "Restaurants": {
+    icon: "fas fa-utensils",
+    conditions: [{ geometry: "nwr", key: "amenity", operator: "=", value: "restaurant" }]
+  },
+  "Schools": {
+    icon: "fas fa-school",
+    conditions: [{ geometry: "nwr", key: "amenity", operator: "=", value: "school" }]
+  },
+  "Parking": {
+    icon: "fas fa-parking",
+    conditions: [{ geometry: "nwr", key: "amenity", operator: "=", value: "parking" }]
+  },
+  "Bus Stops": {
+    icon: "fas fa-bus",
+    conditions: [{ geometry: "node", key: "highway", operator: "=", value: "bus_stop" }]
+  },
+  "ATMs": {
+    icon: "fas fa-money-bill",
+    conditions: [{ geometry: "node", key: "amenity", operator: "=", value: "atm" }]
+  },
+  "Pharmacies": {
+    icon: "fas fa-pills",
+    conditions: [{ geometry: "nwr", key: "amenity", operator: "=", value: "pharmacy" }]
+  },
+  "Gas Stations": {
+    icon: "fas fa-gas-pump",
+    conditions: [{ geometry: "nwr", key: "amenity", operator: "=", value: "fuel" }]
+  }
+};
+
 class VisualQueryBuilder {
   private conditionIdCounter = 0;
   private codeEditor: any = null;
   private presets: any = {};
   private isUpdating = false;
+  private static HISTORY_KEY = "vqb_history";
+  private static MAX_HISTORY = 15;
 
   constructor(codeEditor: any) {
     this.codeEditor = codeEditor;
@@ -960,6 +1005,12 @@ class VisualQueryBuilder {
 
     // Setup event handlers
     this.setupEventHandlers();
+
+    // Render templates dropdown
+    this.renderTemplatesDropdown();
+
+    // Render empty state with quick-start presets
+    this.renderEmptyState();
 
     // Add initial condition block
     this.addConditionBlock();
@@ -1061,6 +1112,49 @@ class VisualQueryBuilder {
         $block.insertAfter($next);
         this.refreshLogicSelectors();
         this.updateCodeEditor();
+      }
+    });
+
+    // --- Phase 2 event handlers ---
+
+    // Templates dropdown toggle
+    $("#vqb-templates-btn").on("click", (e) => {
+      e.stopPropagation();
+      $("#vqb-templates-dropdown").toggleClass("is-active");
+      $("#vqb-history-dropdown").removeClass("is-active");
+    });
+
+    // History dropdown toggle
+    $("#vqb-history-btn").on("click", (e) => {
+      e.stopPropagation();
+      this.renderHistoryDropdown();
+      $("#vqb-history-dropdown").toggleClass("is-active");
+      $("#vqb-templates-dropdown").removeClass("is-active");
+    });
+
+    // Close dropdowns on outside click
+    $(document).on("click", () => {
+      $("#vqb-templates-dropdown").removeClass("is-active");
+      $("#vqb-history-dropdown").removeClass("is-active");
+    });
+
+    // Prevent dropdown menus from closing when clicking inside
+    $(".visual-builder-header-actions .dropdown-menu").on("click", (e) => {
+      e.stopPropagation();
+    });
+
+    // Preview count button
+    $("#preview-count-btn").on("click", () => {
+      this.previewCount();
+    });
+
+    // Location type change — also toggle global warning
+    $('input[name="location-type"]').on("change", () => {
+      const loc = $('input[name="location-type"]:checked').val() as string;
+      if (loc === "global") {
+        $("#global-warning").show();
+      } else {
+        $("#global-warning").hide();
       }
     });
   }
@@ -1214,12 +1308,6 @@ class VisualQueryBuilder {
       }
     });
   }
-
-  removeConditionBlock(id: string) {
-    $(`.condition-block[data-id="${id}"]`).remove();
-    this.refreshLogicSelectors();
-  }
-
   /**
    * Ensures the first condition block never has a logic-select,
    * and all subsequent blocks always have one.
@@ -1497,6 +1585,363 @@ class VisualQueryBuilder {
     } else {
       $condWarning.hide();
     }
+  }
+
+  // ===== CONDITION BLOCK REMOVAL =====
+  private removeConditionBlock(blockId: string) {
+    $(`.condition-block[data-id="${blockId}"]`).remove();
+    this.refreshLogicSelectors();
+    this.updateEmptyState();
+  }
+
+  // ===== PRESET TEMPLATES =====
+
+  /**
+   * Renders the Templates dropdown with all defined presets.
+   */
+  private renderTemplatesDropdown() {
+    const $list = $("#vqb-templates-list");
+    $list.empty();
+
+    const names = Object.keys(VQB_PRESETS);
+    for (let i = 0; i < names.length; i++) {
+      const name = names[i];
+      const preset = VQB_PRESETS[name];
+      const $item = $(`
+        <a class="dropdown-item" data-preset="${name}">
+          <span class="icon is-small"><span class="${preset.icon}"></span></span>
+          <span>${name}</span>
+        </a>
+      `);
+      $item.on("click", () => {
+        this.applyPreset(name);
+        $("#vqb-templates-dropdown").removeClass("is-active");
+      });
+      $list.append($item);
+    }
+  }
+
+  /**
+   * Renders the empty state with quick-start preset buttons.
+   */
+  private renderEmptyState() {
+    const $container = $("#vqb-quick-presets");
+    $container.empty();
+
+    // Show 4 most popular presets as quick-start buttons
+    const quickPresets = ["Hospitals", "Restaurants", "Schools", "Bus Stops"];
+    for (let i = 0; i < quickPresets.length; i++) {
+      const name = quickPresets[i];
+      const preset = VQB_PRESETS[name];
+      if (!preset) continue;
+      const $btn = $(`
+        <button class="button is-small is-light is-rounded">
+          <span class="icon"><span class="${preset.icon}"></span></span>
+          <span>${name}</span>
+        </button>
+      `);
+      $btn.on("click", () => {
+        this.applyPreset(name);
+      });
+      $container.append($btn);
+    }
+  }
+
+  /**
+   * Applies a preset template, replacing all current conditions.
+   */
+  applyPreset(presetName: string) {
+    const preset = VQB_PRESETS[presetName];
+    if (!preset) return;
+
+    // Clear existing condition blocks (but not the empty state div)
+    $("#condition-blocks .condition-block").remove();
+    this.conditionIdCounter = 0;
+
+    // Add conditions from preset
+    for (let i = 0; i < preset.conditions.length; i++) {
+      const cond = preset.conditions[i];
+      this.addConditionBlock();
+
+      // Get the last added block
+      const $block = $("#condition-blocks .condition-block").last();
+      $block.find(".geometry-select select").val(cond.geometry);
+      $block.find(".tag-key-select select").val(cond.key);
+      $block.find(".operator-select select").val(cond.operator);
+
+      // Trigger value options update
+      this.updateValueOptions($block.find(".tag-key-select select"));
+      $block.find(".tag-value-input").val(cond.value);
+    }
+
+    this.updateEmptyState();
+    this.updateCodeEditor();
+  }
+
+  /**
+   * Shows/hides the empty state based on whether condition blocks exist.
+   */
+  private updateEmptyState() {
+    const hasConditions = $("#condition-blocks .condition-block").length > 0;
+    if (hasConditions) {
+      $("#vqb-empty-state").hide();
+    } else {
+      $("#vqb-empty-state").show();
+    }
+  }
+
+  // ===== PREVIEW COUNT =====
+
+  /**
+   * Fires a [out:count] query to estimate result size before full fetch.
+   */
+  private previewCount() {
+    const state = this.getQueryState();
+    const query = this.generateOverpassQL(state);
+
+    // Don't preview empty or comment-only queries
+    if (!query || query.indexOf("// Add conditions") >= 0) {
+      return;
+    }
+
+    // Convert the query to a count query
+    const countQuery = query
+      .replace(/\[out:json\]/, "[out:csv(::count)]")
+      .replace(/out geom;/, "out count;");
+
+    const $btn = $("#preview-count-btn");
+    const $result = $("#preview-count-result");
+
+    $btn.addClass("is-loading");
+    $result.hide();
+
+    // Fire AJAX request to Overpass API
+    const server = "https://overpass-api.de/api/interpreter";
+    $.ajax({
+      url: server,
+      method: "POST",
+      data: { data: countQuery },
+      timeout: 30000,
+      success: (data: string) => {
+        // Parse CSV response — second line contains the count
+        const lines = data.trim().split("\n");
+        let count = 0;
+        if (lines.length >= 2) {
+          count = parseInt(lines[1], 10) || 0;
+        }
+
+        // Display result with severity-colored tag
+        $result
+          .removeClass("is-success is-warning is-danger")
+          .text(`~${count.toLocaleString()} features`);
+
+        if (count === 0) {
+          $result.addClass("is-warning").text("No results found");
+        } else if (count > 10000) {
+          $result.addClass("is-danger");
+        } else if (count > 1000) {
+          $result.addClass("is-warning");
+        } else {
+          $result.addClass("is-success");
+        }
+        $result.show();
+      },
+      error: () => {
+        $result
+          .removeClass("is-success is-warning is-danger")
+          .addClass("is-danger")
+          .text("Count failed")
+          .show();
+      },
+      complete: () => {
+        $btn.removeClass("is-loading");
+      }
+    });
+  }
+
+  // ===== QUERY HISTORY =====
+
+  /**
+   * Saves the current query state to localStorage history.
+   */
+  saveToHistory(queryText: string) {
+    const state = this.getQueryState();
+
+    // Build a label from the first condition
+    let label = "Custom query";
+    if (state.conditions.length > 0) {
+      const first = state.conditions[0];
+      label = first.key ? `${first.key}=${first.value || "*"}` : "Custom query";
+      if (state.conditions.length > 1) {
+        label += ` (+${state.conditions.length - 1} more)`;
+      }
+    }
+
+    const entry: HistoryEntry = {
+      timestamp: Date.now(),
+      queryText: queryText,
+      state: state,
+      label: label
+    };
+
+    const history = this.getHistory();
+    history.unshift(entry);
+
+    // Evict oldest entries
+    while (history.length > VisualQueryBuilder.MAX_HISTORY) {
+      history.pop();
+    }
+
+    try {
+      localStorage.setItem(VisualQueryBuilder.HISTORY_KEY, JSON.stringify(history));
+    } catch (e) {
+      // localStorage full — silently fail
+    }
+  }
+
+  /**
+   * Returns the history entries from localStorage.
+   */
+  getHistory(): HistoryEntry[] {
+    try {
+      const raw = localStorage.getItem(VisualQueryBuilder.HISTORY_KEY);
+      if (raw) {
+        return JSON.parse(raw) as HistoryEntry[];
+      }
+    } catch (e) {
+      // corrupted — reset
+      localStorage.removeItem(VisualQueryBuilder.HISTORY_KEY);
+    }
+    return [];
+  }
+
+  /**
+   * Renders the history dropdown with recent queries.
+   */
+  private renderHistoryDropdown() {
+    const $list = $("#vqb-history-list");
+    $list.empty();
+
+    const history = this.getHistory();
+
+    if (history.length === 0) {
+      $list.append('<p class="dropdown-item has-text-grey-light">No recent queries</p>');
+      return;
+    }
+
+    for (let i = 0; i < history.length; i++) {
+      const entry = history[i];
+      const date = new Date(entry.timestamp);
+      const timeStr = date.toLocaleDateString() + " " + date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+      const $item = $(`
+        <a class="dropdown-item">
+          <strong>${this.escapeHtml(entry.label)}</strong>
+          <span class="history-time">${timeStr}</span>
+        </a>
+      `);
+
+      $item.on("click", () => {
+        this.restoreFromHistory(entry);
+        $("#vqb-history-dropdown").removeClass("is-active");
+      });
+
+      $list.append($item);
+    }
+  }
+
+  /**
+   * Restores VQB state from a history entry.
+   */
+  restoreFromHistory(entry: HistoryEntry) {
+    const state = entry.state;
+
+    // Restore location
+    $(`input[name="location-type"][value="${state.location}"]`).prop("checked", true).trigger("change");
+    if (state.locationValue) {
+      $("#location-value").val(state.locationValue);
+    }
+
+    // Clear existing blocks
+    $("#condition-blocks .condition-block").remove();
+    this.conditionIdCounter = 0;
+
+    // Re-create conditions
+    for (let i = 0; i < state.conditions.length; i++) {
+      const cond = state.conditions[i];
+      this.addConditionBlock();
+
+      const $block = $("#condition-blocks .condition-block").last();
+      $block.find(".geometry-select select").val(cond.geometry || "nwr");
+      $block.find(".tag-key-select select").val(cond.key);
+      $block.find(".operator-select select").val(cond.operator);
+
+      // Update datalist for this key
+      this.updateValueOptions($block.find(".tag-key-select select"));
+      $block.find(".tag-value-input").val(cond.value);
+
+      // Set logic if not the first block
+      if (i > 0 && cond.logic) {
+        $block.find(".logic-select select").val(cond.logic);
+      }
+    }
+
+    this.updateEmptyState();
+    this.updateCodeEditor();
+  }
+
+  // ===== LOADING STATE =====
+
+  /**
+   * Sets the loading state on the VQB panel.
+   * Disables all inputs and shows a spinner overlay.
+   */
+  setLoading(loading: boolean) {
+    const $overlay = $("#vqb-loading-overlay");
+    const $inputs = $("#visual-builder input, #visual-builder select, #visual-builder button");
+
+    if (loading) {
+      $overlay.show();
+      $inputs.prop("disabled", true);
+    } else {
+      $overlay.hide();
+      $inputs.prop("disabled", false);
+    }
+  }
+
+  // ===== SAFE MODE =====
+
+  /**
+   * Checks whether the current query is safe to run.
+   * Returns false for unbounded global queries.
+   */
+  isQuerySafe(): boolean {
+    const locationType = $('input[name="location-type"]:checked').val() as string;
+    const locationValue = ($("#location-value").val() as string) || "";
+    const hasConditions = $("#condition-blocks .condition-block").length > 0;
+
+    // Global with conditions = potentially unsafe
+    if (locationType === "global" && hasConditions) {
+      return false;
+    }
+
+    // Area/around without value = unsafe
+    if ((locationType === "area" || locationType === "around") && !locationValue.trim() && hasConditions) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Escapes HTML entities for safe rendering in the DOM.
+   */
+  private escapeHtml(str: string): string {
+    return str
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
   }
 
   setCodeEditor(codeEditor: any) {
