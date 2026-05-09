@@ -276,7 +276,6 @@
           </div>
           <div
             class="field is-horizontal"
-            style="display: block"
             id="location-params"
             style="display: none"
           >
@@ -292,6 +291,7 @@
                     id="location-value"
                     placeholder="Enter area name or radius"
                   />
+                  <p class="help is-danger" id="location-warning" style="display: none"></p>
                 </div>
               </div>
             </div>
@@ -302,6 +302,7 @@
             </div>
             <div class="field-body">
               <div id="condition-blocks"></div>
+              <p class="help is-warning" id="conditions-warning" style="display: none; margin-bottom: 8px;"></p>
               <button class="button is-small" id="add-condition">
                 <span class="icon"><span class="fas fa-plus"></span></span>
                 <span>Add Condition</span>

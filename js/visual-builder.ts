@@ -1016,13 +1016,14 @@ class VisualQueryBuilder {
     // Geometry type change (Global) - removed, now handled per condition
 
     // Delegate event handlers for condition blocks
+    // Target actual <select> and <input> elements, not wrapper divs
     $("#condition-blocks").on(
       "change",
-      ".tag-key-select, .operator-select, .tag-value-input, .logic-select, .geometry-select",
+      ".tag-key-select select, .operator-select select, .tag-value-input, .logic-select select, .geometry-select select",
       (e) => {
         // Special handler for key change to update value dropdowns
         if (
-          $(e.target).hasClass("tag-key-select") &&
+          $(e.target).closest(".tag-key-select").length > 0 &&
           $(e.target).is("select")
         ) {
           this.updateValueOptions($(e.target));
@@ -1039,6 +1040,28 @@ class VisualQueryBuilder {
       const blockId = $(e.target).closest(".condition-block").data("id");
       this.removeConditionBlock(blockId);
       this.updateCodeEditor();
+    });
+
+    // Move condition up
+    $("#condition-blocks").on("click", ".move-up", (e) => {
+      const $block = $(e.target).closest(".condition-block");
+      const $prev = $block.prev(".condition-block");
+      if ($prev.length > 0) {
+        $block.insertBefore($prev);
+        this.refreshLogicSelectors();
+        this.updateCodeEditor();
+      }
+    });
+
+    // Move condition down
+    $("#condition-blocks").on("click", ".move-down", (e) => {
+      const $block = $(e.target).closest(".condition-block");
+      const $next = $block.next(".condition-block");
+      if ($next.length > 0) {
+        $block.insertAfter($next);
+        this.refreshLogicSelectors();
+        this.updateCodeEditor();
+      }
     });
   }
 
@@ -1084,9 +1107,17 @@ class VisualQueryBuilder {
 
     const block = $(`
       <div class="condition-block" data-id="${id}">
-        <button class="button is-small is-danger remove-condition" title="Remove condition">
-          <span class="icon"><span class="fas fa-times"></span></span>
-        </button>
+        <div class="condition-actions">
+          <button class="button is-small is-danger remove-condition" title="Remove condition">
+            <span class="icon"><span class="fas fa-times"></span></span>
+          </button>
+          <button class="button is-small move-up" title="Move up">
+            <span class="icon"><span class="fas fa-arrow-up"></span></span>
+          </button>
+          <button class="button is-small move-down" title="Move down">
+            <span class="icon"><span class="fas fa-arrow-down"></span></span>
+          </button>
+        </div>
         <div class="select geometry-select">
             <select>
                 <option value="nwr">All (nwr)</option>
@@ -1186,15 +1217,40 @@ class VisualQueryBuilder {
 
   removeConditionBlock(id: string) {
     $(`.condition-block[data-id="${id}"]`).remove();
-    // Update logic selectors - first block shouldn't have one
+    this.refreshLogicSelectors();
+  }
+
+  /**
+   * Ensures the first condition block never has a logic-select,
+   * and all subsequent blocks always have one.
+   */
+  private refreshLogicSelectors() {
     const blocks = $("#condition-blocks .condition-block");
-    if (blocks.length > 0) {
-      blocks.first().find(".logic-select").remove();
-    }
+    blocks.each((index, block) => {
+      const $block = $(block);
+      if (index === 0) {
+        // First block: remove logic selector if present
+        $block.find(".logic-select").remove();
+      } else {
+        // Subsequent blocks: add logic selector if missing
+        if ($block.find(".logic-select").length === 0) {
+          $block.append(`
+            <div class="select logic-select">
+              <select class="logic-select">
+                <option value="and">AND</option>
+                <option value="or">OR</option>
+              </select>
+            </div>
+          `);
+        }
+      }
+    });
   }
 
   clearAll() {
     $("#condition-blocks").empty();
+    $("#conditions-warning").hide();
+    $("#location-warning").hide();
     this.addConditionBlock();
     this.updateCodeEditor();
   }
@@ -1206,8 +1262,6 @@ class VisualQueryBuilder {
       | "around"
       | "global";
     const locationValue = ($("#location-value").val() as string) || "";
-    // Geometry is now per-condition, default to "nwr" for backward compatibility
-    const geometry = "nwr" as "node" | "way" | "relation" | "nwr";
 
     const conditions: Condition[] = [];
     $("#condition-blocks .condition-block").each((index, block) => {
@@ -1225,7 +1279,7 @@ class VisualQueryBuilder {
       const operator = $block
         .find(".operator-select select")
         .val() as Condition["operator"];
-      const geometry =
+      const condGeometry =
         ($block
           .find(".geometry-select select")
           .val() as Condition["geometry"]) || "nwr";
@@ -1240,11 +1294,11 @@ class VisualQueryBuilder {
       if (key && key !== "__custom__") {
         conditions.push({
           id: $block.data("id"),
-          geometry: geometry,
-          key: key,
-          operator: operator,
-          value: value,
-          logic: logic
+          geometry: condGeometry,
+          key,
+          operator,
+          value,
+          logic
         });
       }
     });
@@ -1252,7 +1306,6 @@ class VisualQueryBuilder {
     return {
       location,
       locationValue,
-      geometry,
       conditions
     };
   }
@@ -1288,42 +1341,77 @@ class VisualQueryBuilder {
 
     // Build query clauses
     if (state.conditions.length === 0) {
-      // No conditions - return minimal query structure using global geometry state
-      if (boundsPart) {
-        parts.push(`  ${state.geometry}${boundsPart};`);
-      } else {
-        parts.push(`  ${state.geometry};`);
-      }
-      parts.push("out geom;");
+      // No conditions - show a comment placeholder instead of a dangerous bare query
+      parts.push("// Add conditions above to build a query");
       return parts.join("\n");
     }
 
-    // Generate query - each condition on its own line
-    if (state.conditions.length > 1) {
+    // Group conditions by AND/OR logic into "AND groups".
+    // Each group contains conditions that are AND-connected together.
+    // Groups themselves are OR-connected (union members).
+    // Algorithm: the first condition starts group 0. Each subsequent condition
+    // with logic="and" joins the current group; logic="or" starts a new group.
+    const andGroups: Condition[][] = [];
+    let currentGroup: Condition[] = [];
+
+    for (const condition of state.conditions) {
+      if (condition.logic === "or" && currentGroup.length > 0) {
+        // OR starts a new group — push the current group first
+        andGroups.push(currentGroup);
+        currentGroup = [condition];
+      } else {
+        // AND (or first condition with logic=null) — add to current group
+        currentGroup.push(condition);
+      }
+    }
+    if (currentGroup.length > 0) {
+      andGroups.push(currentGroup);
+    }
+
+    // If there are multiple OR groups, wrap in a union block
+    const needsUnion = andGroups.length > 1;
+    if (needsUnion) {
       parts.push("(");
     }
 
-    // Each condition becomes its own query line
-    for (const condition of state.conditions) {
-      // Use the per-condition geometry instead of global state
-      let queryLine = `  ${condition.geometry}`;
-
-      if (condition.value) {
-        // Standard Key-Value check
-        queryLine += `["${this.escapeString(condition.key)}"${condition.operator}"${this.escapeString(condition.value)}"]`;
-      } else {
-        // Existence check (key exists, value is empty)
-        queryLine += `["${this.escapeString(condition.key)}"]`;
+    // Generate each AND group as a single query line with chained filters
+    for (const group of andGroups) {
+      // Determine geometry: use the first condition's geometry for the group.
+      // If conditions within an AND group have different geometries, each
+      // unique geometry gets its own line (rare but handled correctly).
+      const byGeometry: Record<string, Condition[]> = {};
+      for (const cond of group) {
+        const geo = cond.geometry || "nwr";
+        if (!byGeometry[geo]) {
+          byGeometry[geo] = [];
+        }
+        byGeometry[geo].push(cond);
       }
 
-      if (boundsPart) {
-        queryLine += boundsPart;
+      const geoKeys = Object.keys(byGeometry);
+      for (let gi = 0; gi < geoKeys.length; gi++) {
+        const geometry = geoKeys[gi];
+        const conditions = byGeometry[geometry];
+        let queryLine = `  ${geometry}`;
+
+        // Chain all filters on this line (AND semantics)
+        for (const cond of conditions) {
+          if (cond.value) {
+            queryLine += `["${this.escapeString(cond.key)}"${cond.operator}"${this.escapeString(cond.value)}"]`;
+          } else {
+            queryLine += `["${this.escapeString(cond.key)}"]`;
+          }
+        }
+
+        if (boundsPart) {
+          queryLine += boundsPart;
+        }
+        queryLine += ";";
+        parts.push(queryLine);
       }
-      queryLine += ";";
-      parts.push(queryLine);
     }
 
-    if (state.conditions.length > 1) {
+    if (needsUnion) {
       parts.push(");");
     }
 
@@ -1344,6 +1432,9 @@ class VisualQueryBuilder {
   updateCodeEditor() {
     if (this.isUpdating || !this.codeEditor) return;
 
+    // Run validation
+    this.validateState();
+
     const state = this.getQueryState();
     const query = this.generateOverpassQL(state);
 
@@ -1361,6 +1452,50 @@ class VisualQueryBuilder {
       }
     } finally {
       this.isUpdating = false;
+    }
+  }
+
+  /**
+   * Validates the current builder state and shows inline warnings.
+   */
+  private validateState() {
+    // Location validation: area/around require a value
+    const locationType = $('input[name="location-type"]:checked').val() as string;
+    const locationValue = ($("#location-value").val() as string) || "";
+    const $locationWarning = $("#location-warning");
+
+    if ((locationType === "area" || locationType === "around") && !locationValue.trim()) {
+      $locationWarning.text(`Please enter ${locationType === "area" ? "an area name" : "a radius/location"}.`).show();
+    } else {
+      $locationWarning.hide();
+    }
+
+    // Condition validation: highlight blocks with missing keys
+    let hasValidCondition = false;
+    $("#condition-blocks .condition-block").each((_index, block) => {
+      const $block = $(block);
+      let key = "";
+      const $keySelect = $block.find(".tag-key-select select");
+      if ($keySelect.length > 0) {
+        key = ($keySelect.val() as string) || "";
+      } else {
+        key = ($block.find(".tag-key-select input").val() as string) || "";
+      }
+
+      if (!key || key === "__custom__") {
+        $block.css("border-color", "#ff6b6b");
+      } else {
+        $block.css("border-color", "#ddd");
+        hasValidCondition = true;
+      }
+    });
+
+    const $condWarning = $("#conditions-warning");
+    const totalBlocks = $("#condition-blocks .condition-block").length;
+    if (totalBlocks > 0 && !hasValidCondition) {
+      $condWarning.text("Select a tag key for at least one condition.").show();
+    } else {
+      $condWarning.hide();
     }
   }
 
